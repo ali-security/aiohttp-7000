@@ -240,10 +240,20 @@ class TestPartReader:
             d = CIMultiDictProxy[str](CIMultiDict())
             obj = aiohttp.BodyPartReader(BOUNDARY, d, stream)
             result = b""
-            with pytest.raises(AssertionError):
+            with pytest.raises(ValueError):
                 for _ in range(4):
                     result += await obj.read_chunk(7)
         assert b"Hello, World!\r\n-" == result
+
+    async def test_read_with_content_length_malformed_crlf(self) -> None:
+        # Content-Length is correct but data after content is not \r\n
+        content = b"Hello"
+        h = CIMultiDictProxy(CIMultiDict({"CONTENT-LENGTH": str(len(content))}))
+        # Malformed: "XX" instead of "\r\n" after content
+        with Stream(content + b"XX--:--") as stream:
+            obj = aiohttp.BodyPartReader(BOUNDARY, h, stream)
+            with pytest.raises(ValueError, match="malformed"):
+                await obj.read()
 
     async def test_read_boundary_with_incomplete_chunk(self) -> None:
         with Stream(b"") as stream:
@@ -931,6 +941,33 @@ class TestMultipartReader:
             assert isinstance(second, BodyPartReader)
             assert first.at_eof()
             assert not second.at_eof()
+
+    async def test_read_empty_body_part(self) -> None:
+        with Stream(b"--:\r\n\r\n--:--") as stream:
+            reader = aiohttp.MultipartReader(
+                {CONTENT_TYPE: 'multipart/related;boundary=":"'},
+                stream,
+            )
+            body_parts = []
+            async for part in reader:
+                assert isinstance(part, BodyPartReader)
+                body_parts.append(await part.read())
+
+        assert body_parts == [b""]
+
+    async def test_read_body_part_headers_only(self) -> None:
+        with Stream(b"--:\r\nContent-Type: text/plain\r\n\r\n--:--") as stream:
+            reader = aiohttp.MultipartReader(
+                {CONTENT_TYPE: 'multipart/related;boundary=":"'},
+                stream,
+            )
+            body_parts = []
+            async for part in reader:
+                assert isinstance(part, BodyPartReader)
+                assert "Content-Type" in part.headers
+                body_parts.append(await part.read())
+
+        assert body_parts == [b""]
 
     async def test_read_form_default_encoding(self) -> None:
         with Stream(
