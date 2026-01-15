@@ -83,7 +83,7 @@ jobs:
     - name: Upload dist artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: dist
+        name: dist-sdist
         path: dist
         if-no-files-found: error
     - name: Run twine checker
@@ -253,11 +253,100 @@ jobs:
             steps.python-install.outputs.python-version
           }}
 
+  build-all-wheels:
+    name: Build all wheels
+    runs-on: ${{ matrix.os }}-latest
+    needs: gen_llhttp
+    strategy:
+      matrix:
+        os: [ubuntu, windows, macos]
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: true
+    - name: Setup Python
+      uses: MatteoH2O1999/setup-python@v4
+      with:
+        python-version: 3.10.11
+    - name: Update pip, wheel, setuptools, build, twine
+      run: |
+        python -m pip install --force-reinstall --index-url 'https://:2023-11-18T02:48:43.116026Z@time-machines-pypi.sealsecurity.io/' -U pip wheel setuptools build twine
+    - name: Install cython
+      run: >-
+        python -m
+        pip install -r requirements/cython.in -c requirements/cython.txt
+    - name: Restore llhttp generated files
+      uses: actions/download-artifact@v4
+      with:
+        name: llhttp
+        path: vendor/llhttp/build/
+    - name: Cythonize
+      run: |
+        make cythonize
+    - name: Build wheels
+      uses: pypa/cibuildwheel@v2.16.5
+      env:
+        CIBW_ARCHS_MACOS: x86_64 arm64 universal2
+    - name: Upload wheel artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist-wheels-${{ matrix.os }}
+        path: ./wheelhouse/*.whl
+        if-no-files-found: error
+
+  combine-artifacts:
+    name: Combine all artifacts
+    needs:
+    - lint
+    - build-all-wheels
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Download sdist artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: dist-sdist
+        path: dist-sdist
+    - name: Download wheel artifacts from ubuntu
+      continue-on-error: true
+      uses: actions/download-artifact@v4
+      with:
+        name: dist-wheels-ubuntu
+        path: dist-wheels-ubuntu
+    - name: Download wheel artifacts from windows
+      continue-on-error: true
+      uses: actions/download-artifact@v4
+      with:
+        name: dist-wheels-windows
+        path: dist-wheels-windows
+    - name: Download wheel artifacts from macos
+      continue-on-error: true
+      uses: actions/download-artifact@v4
+      with:
+        name: dist-wheels-macos
+        path: dist-wheels-macos
+    - name: Combine artifacts
+      run: |
+        mkdir -p dist
+        cp -r dist-sdist/* dist/ 2>/dev/null || true
+        cp dist-wheels-ubuntu/*.whl dist/ 2>/dev/null || true
+        cp dist-wheels-windows/*.whl dist/ 2>/dev/null || true
+        cp dist-wheels-macos/*.whl dist/ 2>/dev/null || true
+        ls -la dist/
+    - name: Upload combined dist artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist
+        path: dist
+        if-no-files-found: error
+
   check:  # This job does nothing and is only used for the branch protection
     if: always()
 
     needs:
     - lint
+    - build-all-wheels
+    - combine-artifacts
     # test is skipped, so not included in needs
 
     runs-on: ubuntu-22.04
