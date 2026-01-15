@@ -258,7 +258,7 @@ jobs:
 
     needs:
     - lint
-    - test
+    # test is skipped, so not included in needs
 
     runs-on: ubuntu-22.04
 
@@ -267,7 +267,6 @@ jobs:
       uses: re-actors/alls-green@release/v1
       with:
         jobs: ${{ toJSON(needs) }}
-        allow-skipped: true
 
   pre-deploy:
     name: Pre-Deploy
