@@ -256,9 +256,7 @@ jobs:
   pre-deploy:
     name: Pre-Deploy
     runs-on: ubuntu-22.04
-    needs: check
-    # Run only on pushing a tag
-    if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
+    needs: [check, gen_llhttp]
     steps:
       - name: Dummy
         run: |
