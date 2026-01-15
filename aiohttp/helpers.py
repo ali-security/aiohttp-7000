@@ -811,8 +811,9 @@ def set_result(fut: "asyncio.Future[_T]", result: _T) -> None:
 
 
 def set_exception(fut: "asyncio.Future[_T]", exc: BaseException) -> None:
-    if not fut.done():
-        fut.set_exception(exc)
+    if asyncio.isfuture(fut) and fut.done():
+        return
+    fut.set_exception(exc)
 
 
 @functools.total_ordering

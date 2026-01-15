@@ -22,6 +22,7 @@ from aiohttp import (
     web,
 )
 from aiohttp.hdrs import CONTENT_LENGTH, CONTENT_TYPE, TRANSFER_ENCODING
+from aiohttp.pytest_plugin import AiohttpClient
 from aiohttp.test_utils import make_mocked_coro
 from aiohttp.typedefs import Handler
 
@@ -1658,8 +1659,8 @@ async def test_app_max_client_size(aiohttp_client) -> None:
     await resp.release()
 
 
-async def test_app_max_client_size_adjusted(aiohttp_client) -> None:
-    async def handler(request):
+async def test_app_max_client_size_adjusted(aiohttp_client: AiohttpClient) -> None:
+    async def handler(request: web.Request) -> web.Response:
         await request.post()
         return web.Response(body=b"ok")
 
