@@ -294,7 +294,7 @@ jobs:
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: dist
+        name: dist-tarball
         path: dist
 
   build-wheels:
@@ -357,7 +357,7 @@ jobs:
         CIBW_ARCHS_MACOS: x86_64 arm64 universal2
     - uses: actions/upload-artifact@v4
       with:
-        name: dist
+        name: dist-wheels-${{ matrix.os }}-${{ matrix.qemu || 'default' }}
         path: ./wheelhouse/*.whl
 
   deploy:
@@ -381,10 +381,15 @@ jobs:
     - name: Login
       run: |
         echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
-    - name: Download distributions
+    - name: Download tarball distributions
       uses: actions/download-artifact@v4
       with:
-        name: dist
+        name: dist-tarball
+        path: dist
+    - name: Download wheel distributions
+      uses: actions/download-artifact@v4
+      with:
+        pattern: dist-wheels-*
         path: dist
     - name: Collected dists
       run: |
